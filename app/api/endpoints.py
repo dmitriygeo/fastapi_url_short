@@ -20,7 +20,7 @@ from app.auth.auth_secuirity import authenticate_user
 
 router = APIRouter()
 
-""""Регистрация пользователя"""
+""""Метод для регистрации пользователя"""
 @router.post("/users/", response_model=Token)
 async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     # Проверяем, существует ли пользователь
@@ -37,26 +37,11 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(db_user)
 
-    # Создаем токен
+    # Создаем токен пользователя
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
-
-# @router.post("/token", response_model=Token)
-# async def login_for_access_token(email: str, password: str, db: AsyncSession = Depends(get_db)):
-#     result = await db.execute(select(User).where(User.email == email))
-#     user = result.scalar_one_or_none()
-#
-#     if not user or not verify_password(password, user.hashed_password):
-#         raise HTTPException(
-#             status_code=401,
-#             detail="Incorrect email or password",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-#
-#     access_token = create_access_token(data={"sub": user.email})
-#     return {"access_token": access_token, "token_type": "bearer"}
-
+""""Получение токена пользователя"""
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
         form_data: OAuth2PasswordRequestForm = Depends(),
@@ -71,8 +56,7 @@ async def login_for_access_token(
         )
 
     access_token = create_access_token(data={"sub": user.email})
-
-    # Возвращаем токен, который будет автоматически использоваться для следующих запросов
+    
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -80,7 +64,7 @@ async def login_for_access_token(
         "email": user.email
     }
 
-
+""""Методя создание короткой ссылки"""
 @router.post("/links/shorten", response_model=LinkSchema)
 async def create_short_link(
         link: LinkCreate,
@@ -88,10 +72,9 @@ async def create_short_link(
         redis_client: redis.Redis = Depends(get_redis),
         current_user: Optional[User] = Depends(get_current_user)
 ):
-    print(f"Current user: {current_user.id if current_user else None}")
-    # Проверяем custom_alias если он предоставлен
+    
+    # Проверяем существование алиаса в базе данных
     if link.custom_alias:
-        # Проверяем существование алиаса в базе данных
         result = await db.execute(
             select(Link).where(
                 (Link.short_code == link.custom_alias) |
@@ -108,7 +91,7 @@ async def create_short_link(
         # Генерируем уникальный короткий код
         attempt = 0
         while True:
-            if attempt > 5:  # Ограничиваем количество попыток
+            if attempt > 5:
                 raise HTTPException(
                     status_code=500,
                     detail="Could not generate unique short code"
@@ -116,7 +99,7 @@ async def create_short_link(
 
             short_code = generate_short_code(str(link.original_url) + str(attempt))
 
-            # Проверяем существование кода
+            # Проверяем существование короткого кода
             result = await db.execute(
                 select(Link).where(Link.short_code == short_code)
             )
@@ -126,7 +109,7 @@ async def create_short_link(
             attempt += 1
 
     expires_at = link.expires_at or (datetime.now(timezone.utc) + timedelta(days=30))
-    # Создаем новую ссылку
+
     new_link = Link(
         original_url=str(link.original_url),
         short_code=short_code,
@@ -141,7 +124,7 @@ async def create_short_link(
         await db.commit()
         await db.refresh(new_link)
 
-        # Кэшируем в Redis
+        # Кэширование
         await redis_client.set(
             f"link:{short_code}",
             str(link.original_url),
@@ -156,21 +139,6 @@ async def create_short_link(
             status_code=400,
             detail="Could not create link"
         )
-        # if "short_code" in str(e.orig):
-        #     raise HTTPException(
-        #         status_code=400,
-        #         detail="Short code already exists"
-        #     )
-        # elif "custom_alias" in str(e.orig):
-        #     raise HTTPException(
-        #         status_code=400,
-        #         detail="Custom alias already exists"
-        #     )
-        # else:
-        #     raise HTTPException(
-        #         status_code=400,
-        #         detail="Database integrity error"
-        #     )
 
 async def clean_expire_link(db: AsyncSession, redis_client: redis.Redis = Depends(get_redis)):
     try:
@@ -185,7 +153,6 @@ async def clean_expire_link(db: AsyncSession, redis_client: redis.Redis = Depend
         )
         expired_links = result.scalars().all()
 
-        # Удаляем их из Redis и базы данных
         for link in expired_links:
             await redis_client.delete(f"link:{link.short_code}")
 
@@ -200,6 +167,7 @@ async def clean_expire_link(db: AsyncSession, redis_client: redis.Redis = Depend
     except Exception as e:
         await db.rollback()
 
+""""Метод для перехода по короткой ссылке"""
 @router.get('/{short_code}')
 async def redirect_url(short_code: str, db: AsyncSession = Depends(get_db),
                        redis_client: redis.Redis = Depends(get_redis)):
@@ -213,9 +181,7 @@ async def redirect_url(short_code: str, db: AsyncSession = Depends(get_db),
     if not link:
         raise HTTPException(status_code=404,
                             detail='link not found')
-    # if is_link_expired(link.expires_at):
-    #     raise HTTPException(status_code=410,
-    #                         detail='link has expired')
+
     if link.expires_at and datetime.now(timezone.utc) > link.expires_at:
         await db.delete(link)
         await db.commit()
@@ -234,7 +200,8 @@ async def redirect_url(short_code: str, db: AsyncSession = Depends(get_db),
             ex=30
         )
     return {'url': link.original_url}
-
+                           
+""""Метод для получения статистики"""
 @router.get("/links/{short_code}/stats", response_model=LinkSchema)
 async def get_link_stats(short_code: str, db: AsyncSession = Depends(get_db),
                          current_user: Optional[User] = Depends(get_current_user)):
@@ -250,7 +217,8 @@ async def get_link_stats(short_code: str, db: AsyncSession = Depends(get_db),
         )
 
     return link
-
+                             
+""""Удаление короткой ссылки"""
 @router.delete("/links/{short_code}")
 async def delete_link(short_code: str, db: AsyncSession = Depends(get_db),
                       redis_client: redis.Redis = Depends(get_redis),
@@ -279,6 +247,7 @@ async def delete_link(short_code: str, db: AsyncSession = Depends(get_db),
 
     return {"message": "link deleted"}
 
+""""Метод для обновления короткой ссылки"""
 @router.put("/links/{short_code}")
 async def update_link(short_code: str, new_link: LinkCreate,
                       db: AsyncSession = Depends(get_db),
@@ -309,7 +278,6 @@ async def update_link(short_code: str, new_link: LinkCreate,
     await db.commit()
     await db.refresh(link)
 
-    # Обновляем кэш
     await redis_client.set(
         f"link:{short_code}",
         str(new_link.original_url),
@@ -318,14 +286,14 @@ async def update_link(short_code: str, new_link: LinkCreate,
 
     return link
 
-
+""""Поиск сслыки по оригинальному url"""
 @router.get("/links/search", response_model=List[LinkSchema])
 async def search_links(
         original_url: str = Query(..., description="URL"),
         db: AsyncSession = Depends(get_db),
         redis_client: redis.Redis = Depends(get_redis)
 ):
-    # Пробуем получить результат из кэша
+    # Получаем из кэша
     cache_key = f"search:{original_url}"
     cached_result = await redis_client.get(cache_key)
 
@@ -349,7 +317,6 @@ async def search_links(
                 detail="No links found for this URL"
             )
 
-        # Кэшируем результат
         links_data = [model_to_dict(link) for link in links]
         await redis_client.set(
             cache_key,
