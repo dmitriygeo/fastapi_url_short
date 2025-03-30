@@ -10,7 +10,7 @@ from config import ALGORITHM, SECRET_KEY
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
-
+"""Получение текущего пользователя по токену"""
 async def get_current_user(token: str = Depends(oauth2_scheme),
         db: AsyncSession = Depends(get_db)) -> Optional[User]:
 
