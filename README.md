@@ -48,6 +48,7 @@ curl -X POST "http://localhost:8000/api/v1/links/shorten" \
 
 ### Таблица users
 id - уникальный индентификатор пользователя;
+
 email - уникальный Email пользователя;
 hashed_password - хэшированный пароль;
 is_active - статус пользователя;
