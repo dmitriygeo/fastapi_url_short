@@ -16,7 +16,7 @@
 
 ### Регистрация пользователя
 ```bash
-curl -X POST "http://localhost:8000/api/v1/users/" \
+curl -X POST "https://fastapi-url-short-1.onrender.com/api/v1/users/" \
      -H "Content-Type: application/json" \
      -d '{
        "email": "user@example.com",
@@ -26,14 +26,14 @@ curl -X POST "http://localhost:8000/api/v1/users/" \
 
 ### Получение токена
 ```bash
-curl -X POST "http://localhost:8000/api/v1/token" \
+curl -X POST "https://fastapi-url-short-1.onrender.com/api/v1/token" \
      -H "Content-Type: application/x-www-form-urlencoded" \
      -d "username=user@example.com&password=password"
 ```
 
 ### Создание короткой ссылки
 ```bash
-curl -X POST "http://localhost:8000/api/v1/links/shorten" \
+curl -X POST "https://fastapi-url-short-1.onrender.com/api/v1/links/shorten" \
      -H "Authorization: Bearer your_token" \
      -H "Content-Type: application/json" \
      -d '{
