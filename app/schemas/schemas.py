@@ -21,19 +21,15 @@ class LinkBase(BaseModel):
     custom_alias: Optional[str] = None
     expires_at: Optional[datetime] = None
 
-    #@field_validator('expires_at')
     def validate_expires_at(cls, v: Optional[datetime]) -> Optional[datetime]:
         if v is not None:
-            # Убеждаемся, что входящая дата имеет информацию о часовом поясе
             if v.tzinfo is None:
                 v = v.replace(tzinfo=timezone.utc)
-
-            # Проверяем, что дата в будущем
+                
             now = datetime.now(timezone.utc)
             if v <= now:
                 raise ValueError("Expiration date must be in the future")
 
-            # Округляем до минут
             return v.replace(second=0, microsecond=0)
         return v
 
