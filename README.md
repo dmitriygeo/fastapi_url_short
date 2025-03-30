@@ -41,6 +41,7 @@ curl -X POST "http://localhost:8000/api/v1/links/shorten" \
        "custom_alias": "mylink",
        "expires_at": "2025-03-24T08:44:26.784Z"
      }'
+```
 
 
 ## База данных
